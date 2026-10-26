@@ -99,7 +99,62 @@ app.get('/api/latest', (req, res) => {
 });
 
 // ==================================================
-// 3. MAGIC LINKS PORTAL ROUTES
+// 3. AI SUMMARY HISTORY ROUTES
+// ==================================================
+const SUMMARIES_FILE = path.join(__dirname, 'summaries.json');
+
+function getSummaries() {
+  if (!fs.existsSync(SUMMARIES_FILE)) {
+    fs.writeFileSync(SUMMARIES_FILE, JSON.stringify([], null, 2));
+    return [];
+  }
+  try {
+    return JSON.parse(fs.readFileSync(SUMMARIES_FILE, 'utf8'));
+  } catch (err) {
+    return [];
+  }
+}
+
+function saveSummaries(summaries) {
+  fs.writeFileSync(SUMMARIES_FILE, JSON.stringify(summaries, null, 2));
+}
+
+app.post('/api/summaries/submit', (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ success: false, error: 'Missing or invalid text field' });
+    }
+
+    // Extract the first line as the display title in history
+    const firstLine = text.split('\n')[0].trim();
+    const title = firstLine.length > 0 ? firstLine : 'Untitled Summary';
+    const timestamp = Date.now();
+
+    const summaries = getSummaries();
+    const newEntry = {
+      id: Date.now().toString(),
+      title,
+      text,
+      timestamp
+    };
+
+    summaries.unshift(newEntry);
+    saveSummaries(summaries);
+
+    return res.status(200).json({ success: true, entry: newEntry });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+app.get('/api/summaries', (req, res) => {
+  const summaries = getSummaries();
+  return res.status(200).json({ success: true, summaries });
+});
+
+// ==================================================
+// 4. MAGIC LINKS PORTAL ROUTES
 // ==================================================
 const DATA_FILE = path.join(__dirname, 'data.json');
 
@@ -194,7 +249,7 @@ app.all('/api/update-link', (req, res) => {
 });
 
 // ==================================================
-// 4. HISTORY DASHBOARD ROUTE
+// 5. HISTORY DASHBOARD ROUTE
 // ==================================================
 app.get('/history', (req, res) => {
   const historyHtmlPath = path.join(__dirname, 'history.html');
