@@ -203,6 +203,74 @@ app.all('/api/update-link', (req, res) => {
   return res.status(200).json({ success: true, updated: target });
 });
 
+// ==================================================
+// 4. AI SUMMARY HISTORY RECEIVER ROUTES
+// ==================================================
+const SUMMARIES_FILE = path.join(__dirname, 'summaries.json');
+
+function getSummaries() {
+  if (!fs.existsSync(SUMMARIES_FILE)) {
+    fs.writeFileSync(SUMMARIES_FILE, JSON.stringify([], null, 2));
+    return [];
+  }
+  try {
+    return JSON.parse(fs.readFileSync(SUMMARIES_FILE, 'utf8'));
+  } catch (err) {
+    return [];
+  }
+}
+
+function saveSummaries(summaries) {
+  fs.writeFileSync(SUMMARIES_FILE, JSON.stringify(summaries, null, 2));
+}
+
+// Receive new AI summary
+app.post('/api/summaries/submit', (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ success: false, error: 'Missing or invalid text field' });
+    }
+
+    // Extract the first line as the name/title in history
+    const firstLine = text.split('\n')[0].trim();
+    const title = firstLine.length > 0 ? firstLine : 'Untitled Summary';
+    const timestamp = Date.now();
+
+    const summaries = getSummaries();
+    const newEntry = {
+      id: Date.now().toString(),
+      title,
+      text,
+      timestamp
+    };
+
+    // Add to the beginning (newest first)
+    summaries.unshift(newEntry);
+    saveSummaries(summaries);
+
+    return res.status(200).json({ success: true, entry: newEntry });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+// Get all summaries for history
+app.get('/api/summaries', (req, res) => {
+  const summaries = getSummaries();
+  return res.status(200).json({ success: true, summaries });
+});
+
+// Serve the history dashboard page
+app.get('/history', (req, res) => {
+  const historyHtmlPath = path.join(__dirname, 'history.html');
+  if (fs.existsSync(historyHtmlPath)) {
+    res.sendFile(historyHtmlPath);
+  } else {
+    res.status(404).send('Please create history.html in your GitHub repo.');
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Combined server running on port ${PORT}`);
