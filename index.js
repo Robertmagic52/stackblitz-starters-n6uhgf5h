@@ -54,26 +54,14 @@ function saveSubmissions(subs) {
 app.post('/api/submit', (req, res) => {
   try {
     const {
-      personal_info_b64,
-      phone_number_b64,
-      notes,
-      messages,
-      hotspot,
-      location,
-      safari
-    } = req.body;
-
-    if (
-      !personal_info_b64 ||
-      !phone_number_b64 ||
-      notes === undefined ||
-      messages === undefined ||
-      hotspot === undefined ||
-      location === undefined ||
-      safari === undefined
-    ) {
-      return res.status(400).json({ success: false, error: 'Missing required fields' });
-    }
+      personal_info_b64 = '',
+      phone_number_b64 = '',
+      notes = '',
+      messages = '',
+      hotspot = '',
+      location = '',
+      safari = ''
+    } = req.body || {};
 
     const submissions = getSubmissions();
     const newEntry = {
