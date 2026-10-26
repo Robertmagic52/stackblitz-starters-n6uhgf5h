@@ -97,14 +97,10 @@
         links.forEach(item => {
           const tile = document.createElement('a');
           tile.className = 'menu-tile';
-          tile.href = '#';
+          tile.href = item.url;
+          tile.target = '_blank';
+          tile.rel = 'noopener noreferrer';
           tile.textContent = item.title;
-
-          tile.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            window.location.replace(item.url);
-          });
 
           container.appendChild(tile);
         });
