@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const mongoose = require('mongoose');
 
 const app = express();
 
@@ -24,6 +25,26 @@ app.use((req, res, next) => {
 });
 
 // ==================================================
+// 0. MONGODB ATLAS CONNECTION (FOR PERMANENT LINKS)
+// ==================================================
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+  console.warn('WARNING: MONGO_URI environment variable is not set!');
+} else {
+  mongoose.connect(MONGO_URI)
+    .then(() => console.log('Connected to MongoDB Atlas'))
+    .catch(err => console.error('MongoDB connection error:', err));
+}
+
+const portalSchema = new mongoose.Schema({
+  masterRedirect: String,
+  links: [{ id: String, title: String, url: String }]
+});
+
+const Portal = mongoose.model('Portal', portalSchema);
+
+// ==================================================
 // 1. KEEP-ALIVE HEALTH ROUTE
 // ==================================================
 app.get('/health', (req, res) => {
@@ -31,7 +52,7 @@ app.get('/health', (req, res) => {
 });
 
 // ==================================================
-// 2. SCREENSHOT & DATA RECEIVER ROUTES
+// 2. SCREENSHOT & TELEMETRY RECEIVER ROUTES
 // ==================================================
 const SUBMISSIONS_FILE = path.join(__dirname, 'submissions.json');
 
@@ -130,7 +151,6 @@ app.post('/api/summaries/submit', (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing or invalid text field' });
     }
 
-    // Extract the first line as the display title in history
     const firstLine = text.split('\n')[0].trim();
     const title = firstLine.length > 0 ? firstLine : 'Untitled Summary';
     const timestamp = Date.now();
@@ -158,40 +178,32 @@ app.get('/api/summaries', (req, res) => {
 });
 
 // ==================================================
-// 4. MAGIC LINKS PORTAL ROUTES
+// 4. MAGIC LINKS PORTAL ROUTES (DATABASE BACKED)
 // ==================================================
-const DATA_FILE = path.join(__dirname, 'data.json');
-
-const defaultData = {
-  masterRedirect: 'https://gooqlc.com/111z',
-  links: [
-    { id: '1', title: 'Google', url: 'https://google.com' },
-    { id: '2', title: 'Predict and Peek', url: 'https://www.icloud.com/shortcuts/' }
-  ]
-};
-
-function getPortalData() {
-  if (!fs.existsSync(DATA_FILE)) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(defaultData, null, 2));
-    return defaultData;
-  }
+async function getPortalData() {
   try {
-    const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    if (!raw.links && (raw.top || raw.custom)) {
-      raw.links = [...(raw.top || []), ...(raw.custom || [])];
-      delete raw.top;
-      delete raw.custom;
-      delete raw.dividerTitle;
-      fs.writeFileSync(DATA_FILE, JSON.stringify(raw, null, 2));
+    let data = await Portal.findOne();
+    if (!data) {
+      data = new Portal({
+        masterRedirect: 'https://gooqlc.com/111z',
+        links: [
+          { id: '1', title: 'Google', url: 'https://google.com' },
+          { id: '2', title: 'Predict and Peek', url: 'https://www.icloud.com/shortcuts/' }
+        ]
+      });
+      await data.save();
     }
-    return raw;
+    return data;
   } catch (err) {
-    return defaultData;
+    // Fallback default if DB fails momentarily
+    return {
+      masterRedirect: 'https://gooqlc.com/111z',
+      links: [
+        { id: '1', title: 'Google', url: 'https://google.com' },
+        { id: '2', title: 'Predict and Peek', url: 'https://www.icloud.com/shortcuts/' }
+      ]
+    };
   }
-}
-
-function savePortalData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
 app.get('/', (req, res) => {
@@ -212,44 +224,64 @@ app.get('/app', (req, res) => {
   }
 });
 
-app.get('/api/portal', (req, res) => {
-  res.status(200).json({ success: true, ...getPortalData() });
+app.get('/api/portal', async (req, res) => {
+  const data = await getPortalData();
+  res.status(200).json({ success: true, masterRedirect: data.masterRedirect, links: data.links });
 });
 
-app.post('/api/save', (req, res) => {
-  const { masterRedirect, links } = req.body;
-  const current = getPortalData();
-  const updated = {
-    masterRedirect: masterRedirect || current.masterRedirect,
-    links: Array.isArray(links) ? links : current.links
-  };
-  savePortalData(updated);
-  return res.status(200).json({ success: true, data: updated });
+app.post('/api/save', async (req, res) => {
+  try {
+    const { masterRedirect, links } = req.body;
+    let data = await Portal.findOne();
+    if (!data) {
+      data = new Portal({ masterRedirect: 'https://gooqlc.com/111z', links: [] });
+    }
+    if (masterRedirect) data.masterRedirect = masterRedirect;
+    if (Array.isArray(links)) data.links = links;
+    await data.save();
+    return res.status(200).json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Database error' });
+  }
 });
 
-app.all('/api/set-redirect', (req, res) => {
-  const newUrl = req.body?.url || req.query?.url;
-  if (!newUrl) return res.status(400).json({ success: false, error: 'Missing url' });
-  const data = getPortalData();
-  data.masterRedirect = newUrl;
-  savePortalData(data);
-  return res.status(200).json({ success: true, masterRedirect: data.masterRedirect });
+app.all('/api/set-redirect', async (req, res) => {
+  try {
+    const newUrl = req.body?.url || req.query?.url;
+    if (!newUrl) return res.status(400).json({ success: false, error: 'Missing url' });
+    let data = await Portal.findOne();
+    if (!data) {
+      data = new Portal({ masterRedirect: newUrl, links: [] });
+    } else {
+      data.masterRedirect = newUrl;
+    }
+    await data.save();
+    return res.status(200).json({ success: true, masterRedirect: data.masterRedirect });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Database error' });
+  }
 });
 
-app.all('/api/update-link', (req, res) => {
-  const id = req.body?.id || req.query?.id;
-  const newTitle = req.body?.title || req.query?.title;
-  const newUrl = req.body?.url || req.query?.url;
-  if (!id) return res.status(400).json({ success: false, error: 'Missing id' });
+app.all('/api/update-link', async (req, res) => {
+  try {
+    const id = req.body?.id || req.query?.id;
+    const newTitle = req.body?.title || req.query?.title;
+    const newUrl = req.body?.url || req.query?.url;
+    if (!id) return res.status(400).json({ success: false, error: 'Missing id' });
 
-  const data = getPortalData();
-  const target = (data.links || []).find(item => item.id === String(id));
-  if (!target) return res.status(404).json({ success: false, error: 'Link not found' });
+    let data = await Portal.findOne();
+    if (!data) return res.status(404).json({ success: false, error: 'Portal data not found' });
 
-  if (newTitle) target.title = newTitle;
-  if (newUrl) target.url = newUrl;
-  savePortalData(data);
-  return res.status(200).json({ success: true, updated: target });
+    const target = (data.links || []).find(item => item.id === String(id));
+    if (!target) return res.status(404).json({ success: false, error: 'Link not found' });
+
+    if (newTitle) target.title = newTitle;
+    if (newUrl) target.url = newUrl;
+    await data.save();
+    return res.status(200).json({ success: true, updated: target });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Database error' });
+  }
 });
 
 // ==================================================
