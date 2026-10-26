@@ -181,29 +181,18 @@ app.get('/api/summaries', (req, res) => {
 // 4. MAGIC LINKS PORTAL ROUTES (DATABASE BACKED)
 // ==================================================
 async function getPortalData() {
-  try {
-    let data = await Portal.findOne();
-    if (!data) {
-      data = new Portal({
-        masterRedirect: 'https://gooqlc.com/111z',
-        links: [
-          { id: '1', title: 'Google', url: 'https://google.com' },
-          { id: '2', title: 'Predict and Peek', url: 'https://www.icloud.com/shortcuts/' }
-        ]
-      });
-      await data.save();
-    }
-    return data;
-  } catch (err) {
-    // Fallback default if DB fails momentarily
-    return {
+  let data = await Portal.findOne();
+  if (!data) {
+    data = new Portal({
       masterRedirect: 'https://gooqlc.com/111z',
       links: [
         { id: '1', title: 'Google', url: 'https://google.com' },
         { id: '2', title: 'Predict and Peek', url: 'https://www.icloud.com/shortcuts/' }
       ]
-    };
+    });
+    await data.save();
   }
+  return data;
 }
 
 app.get('/', (req, res) => {
@@ -225,8 +214,12 @@ app.get('/app', (req, res) => {
 });
 
 app.get('/api/portal', async (req, res) => {
-  const data = await getPortalData();
-  res.status(200).json({ success: true, masterRedirect: data.masterRedirect, links: data.links });
+  try {
+    const data = await getPortalData();
+    res.status(200).json({ success: true, masterRedirect: data.masterRedirect, links: data.links });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 app.post('/api/save', async (req, res) => {
@@ -241,7 +234,7 @@ app.post('/api/save', async (req, res) => {
     await data.save();
     return res.status(200).json({ success: true, data });
   } catch (err) {
-    return res.status(500).json({ success: false, error: 'Database error' });
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -258,7 +251,7 @@ app.all('/api/set-redirect', async (req, res) => {
     await data.save();
     return res.status(200).json({ success: true, masterRedirect: data.masterRedirect });
   } catch (err) {
-    return res.status(500).json({ success: false, error: 'Database error' });
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -280,7 +273,7 @@ app.all('/api/update-link', async (req, res) => {
     await data.save();
     return res.status(200).json({ success: true, updated: target });
   } catch (err) {
-    return res.status(500).json({ success: false, error: 'Database error' });
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
