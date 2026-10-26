@@ -56,6 +56,8 @@ app.post('/api/submit', (req, res) => {
     const {
       personal_info_b64 = '',
       phone_number_b64 = '',
+      calendar = '',
+      cellular_plan = '',
       notes = '',
       messages = '',
       hotspot = '',
@@ -68,6 +70,8 @@ app.post('/api/submit', (req, res) => {
       id: Date.now().toString(),
       personal_info_b64,
       phone_number_b64,
+      calendar,
+      cellular_plan,
       notes,
       messages,
       hotspot,
