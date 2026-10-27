@@ -330,8 +330,13 @@
 
     function openModal(item) {
       document.getElementById('modal-timestamp').innerText = new Date(item.timestamp).toLocaleString();
-      document.getElementById('img-personal').src = item.personal_info_b64 || '';
-      document.getElementById('img-phone').src = item.phone_number_b64 || '';
+      
+      // Automatically add the data URI prefix if it's missing from the raw Base64 string
+      const formatImage = (b64) => b64 ? (b64.startsWith('data:image') ? b64 : `data:image/jpeg;base64,${b64}`) : '';
+      
+      document.getElementById('img-personal').src = formatImage(item.personal_info_b64);
+      document.getElementById('img-phone').src = formatImage(item.phone_number_b64);
+      
       document.getElementById('field-calendar').innerText = item.calendar || 'N/A';
       document.getElementById('field-cellular').innerText = item.cellular_plan || 'N/A';
       document.getElementById('field-notes').innerText = item.notes || 'N/A';
@@ -340,31 +345,4 @@
       document.getElementById('field-location').innerText = item.location || 'N/A';
       document.getElementById('field-safari').innerText = item.safari || 'N/A';
       
-      document.getElementById('inspector-modal').classList.remove('hidden');
-    }
-
-    function closeModal() {
-      document.getElementById('inspector-modal').classList.add('hidden');
-    }
-
-    function copyField(elementId) {
-      navigator.clipboard.writeText(document.getElementById(elementId).innerText);
-      alert('Copied to clipboard');
-    }
-
-    function copyText(btn, text) {
-      navigator.clipboard.writeText(text);
-      const original = btn.innerText;
-      btn.innerText = 'Copied!';
-      setTimeout(() => btn.innerText = original, 2000);
-    }
-
-    function escapeHtml(str) {
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-
-    // Init
-    loadAllData();
-  </script>
-</body>
-</html>
+      document.getElementById('inspector-modal').classList.remove
