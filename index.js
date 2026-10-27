@@ -124,7 +124,7 @@ app.get('/api/latest', (req, res) => {
 });
 
 // ==================================================
-// 3. AI SUMMARY HISTORY ROUTES
+// 3. AI SUMMARY HISTORY ROUTES (UPDATED WITH submissionId)
 // ==================================================
 const SUMMARIES_FILE = path.join(__dirname, 'summaries.json');
 
@@ -146,7 +146,7 @@ function saveSummaries(summaries) {
 
 app.post('/api/summaries/submit', (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, submissionId = null } = req.body;
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ success: false, error: 'Missing or invalid text field' });
     }
@@ -158,6 +158,7 @@ app.post('/api/summaries/submit', (req, res) => {
     const summaries = getSummaries();
     const newEntry = {
       id: Date.now().toString(),
+      submissionId, // Links this AI summary directly to the telemetry record ID
       title,
       text,
       timestamp
