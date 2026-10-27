@@ -78,7 +78,30 @@
 
   </div>
 
-  <!-- Telemetry Inspector Modal -->
+  <!-- ========================================== -->
+  <!-- MODAL 1: LARGE AI SUMMARY READER             -->
+  <!-- ========================================== -->
+  <div id="summary-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#12131c] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/20">
+        <h2 class="text-sm font-semibold text-white flex items-center gap-2">
+          <span id="summary-modal-title">AI Summary</span>
+          <span id="summary-modal-timestamp" class="text-[11px] text-slate-500 font-normal mt-0.5"></span>
+        </h2>
+        <div class="flex items-center gap-2">
+          <button onclick="copyFullSummary()" class="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition" id="btn-copy-summary">Copy</button>
+          <button onclick="closeSummaryModal()" class="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition">Close</button>
+        </div>
+      </div>
+      <div class="p-6 overflow-y-auto">
+        <div id="summary-modal-text" class="text-slate-200 text-sm md:text-base font-mono whitespace-pre-wrap leading-relaxed"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL 2: TELEMETRY INSPECTOR                 -->
+  <!-- ========================================== -->
   <div id="inspector-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-[#12131c] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/20">
@@ -155,7 +178,7 @@
 
   <script>
     // --- GLOBAL STATE ---
-    let activeMainView = 'data'; // 'data' | 'portal'
+    let activeMainView = 'data'; 
     let telemetryData = [];
     let summariesData = [];
     let portalLinks = [];
@@ -193,156 +216,4 @@
         const sumJson = await sumRes.json();
 
         telemetryData = subJson.success ? subJson.submissions : [];
-        summariesData = sumJson.success ? sumJson.summaries : [];
-        renderSummaries();
-      } catch (err) {
-        document.getElementById('content-container').innerHTML = `<div class="text-center py-20 text-xs text-red-400">Failed to load data.</div>`;
-      }
-    }
-
-    function renderSummaries() {
-      const container = document.getElementById('content-container');
-      const query = document.getElementById('search-input').value.toLowerCase();
-      const sortMode = document.getElementById('sort-select').value;
-
-      let filtered = summariesData.filter(item => item.title.toLowerCase().includes(query) || item.text.toLowerCase().includes(query));
-      filtered.sort((a, b) => sortMode === 'newest' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp);
-
-      if (filtered.length === 0) {
-        container.innerHTML = `<div class="text-center py-16 text-xs text-slate-500 border border-white/5 rounded-xl">No AI summaries found.</div>`;
-        return;
-      }
-
-      const subMap = {};
-      telemetryData.forEach(s => { subMap[s.id] = s; });
-
-      container.innerHTML = filtered.map(item => {
-        const hasLinkedSub = item.submissionId && subMap[item.submissionId];
-        return `
-          <div class="bg-black/30 border border-white/10 rounded-xl p-5 space-y-3">
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <h2 class="font-semibold text-sm text-slate-100">${escapeHtml(item.title)}</h2>
-                <div class="text-[10px] text-slate-500 font-mono mt-0.5">${new Date(item.timestamp).toLocaleString()}</div>
-              </div>
-              <div class="flex items-center gap-2 shrink-0">
-                ${hasLinkedSub ? `<button onclick='openTelemetryById("${item.submissionId}")' class="text-[10px] bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded transition">View Telemetry</button>` : ''}
-                <button onclick='copyText(this, ${JSON.stringify(item.text)})' class="text-[10px] bg-white/5 hover:bg-white/10 text-slate-300 px-2.5 py-1 rounded transition">Copy</button>
-              </div>
-            </div>
-            <div class="bg-black/50 border border-white/5 rounded-lg p-3 text-xs text-slate-300 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed">${escapeHtml(item.text)}</div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    // --- PORTAL CONTROLLER LOGIC ---
-    async function loadPortalData() {
-      try {
-        const res = await fetch('/api/portal?t=' + Date.now());
-        const data = await res.json();
-        document.getElementById('masterRedirect').value = data.masterRedirect || '';
-        portalLinks = data.links || [];
-        renderPortal();
-      } catch (err) {
-        console.error('Failed to load portal data:', err);
-      }
-    }
-
-    function renderPortal() {
-      const container = document.getElementById('portal-links-list');
-      container.innerHTML = '';
-      portalLinks.forEach((item, index) => {
-        const div = document.createElement('div');
-        div.className = 'bg-black/30 border border-white/10 rounded-xl p-4 portal-card';
-        div.innerHTML = `
-          <div class="flex items-center justify-between mb-3">
-            <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Button #${index + 1}</div>
-            <button onclick="removePortalLink(${index})" class="text-[10px] font-semibold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2 py-1 rounded transition">Delete</button>
-          </div>
-          <div class="space-y-3">
-            <div>
-              <label class="text-[11px] text-slate-500 block mb-1">Title</label>
-              <input type="text" class="link-title w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500/50 transition" value="${item.title}" />
-            </div>
-            <div>
-              <label class="text-[11px] text-slate-500 block mb-1">Target URL</label>
-              <input type="text" class="link-url w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500/50 transition" value="${item.url}" />
-            </div>
-          </div>
-        `;
-        container.appendChild(div);
-      });
-    }
-
-    function syncPortalInputs() {
-      const cards = document.querySelectorAll('.portal-card');
-      cards.forEach((card, i) => {
-        if (portalLinks[i]) {
-          portalLinks[i].title = card.querySelector('.link-title').value;
-          portalLinks[i].url = card.querySelector('.link-url').value;
-        }
-      });
-    }
-
-    function addPortalLink() {
-      syncPortalInputs();
-      portalLinks.push({ id: String(Date.now()).slice(-4), title: 'New Link', url: 'https://' });
-      renderPortal();
-    }
-
-    function removePortalLink(index) {
-      syncPortalInputs();
-      portalLinks.splice(index, 1);
-      renderPortal();
-    }
-
-    async function savePortalData() {
-      syncPortalInputs();
-      const payload = {
-        masterRedirect: document.getElementById('masterRedirect').value.trim(),
-        links: portalLinks
-      };
-
-      try {
-        const res = await fetch('/api/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const result = await res.json();
-        if (result.success) {
-          alert('Portal changes saved successfully!');
-        } else {
-          alert('Error saving: ' + JSON.stringify(result));
-        }
-      } catch (err) {
-        alert('Failed to connect to server: ' + err.message);
-      }
-    }
-
-    // --- MODAL & UTILS ---
-    function openTelemetryById(subId) {
-      const match = telemetryData.find(s => String(s.id) === String(subId));
-      if (match) openModal(match);
-      else alert('Linked telemetry packet not found.');
-    }
-
-    function openModal(item) {
-      document.getElementById('modal-timestamp').innerText = new Date(item.timestamp).toLocaleString();
-      
-      // Automatically add the data URI prefix if it's missing from the raw Base64 string
-      const formatImage = (b64) => b64 ? (b64.startsWith('data:image') ? b64 : `data:image/jpeg;base64,${b64}`) : '';
-      
-      document.getElementById('img-personal').src = formatImage(item.personal_info_b64);
-      document.getElementById('img-phone').src = formatImage(item.phone_number_b64);
-      
-      document.getElementById('field-calendar').innerText = item.calendar || 'N/A';
-      document.getElementById('field-cellular').innerText = item.cellular_plan || 'N/A';
-      document.getElementById('field-notes').innerText = item.notes || 'N/A';
-      document.getElementById('field-messages').innerText = item.messages || 'N/A';
-      document.getElementById('field-hotspot').innerText = item.hotspot || 'N/A';
-      document.getElementById('field-location').innerText = item.location || 'N/A';
-      document.getElementById('field-safari').innerText = item.safari || 'N/A';
-      
-      document.getElementById('inspector-modal').classList.remove
+        summariesData = sumJson.success ? sumJson
