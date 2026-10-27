@@ -215,18 +215,37 @@
         return;
       }
 
-      container.innerHTML = filtered.map(item => `
-        <div class="bg-black/30 border border-white/10 rounded-xl p-5 space-y-3">
-          <div class="flex items-start justify-between gap-4">
-            <h2 class="font-semibold text-sm text-slate-100">${escapeHtml(item.title)}</h2>
-            <div class="flex items-center gap-3 shrink-0">
-              <span class="text-[10px] text-slate-500 font-mono">${new Date(item.timestamp).toLocaleString()}</span>
-              <button onclick='copyText(this, ${JSON.stringify(item.text)})' class="text-[10px] bg-white/5 hover:bg-white/10 text-slate-300 px-2.5 py-1 rounded transition">Copy</button>
+      // Build quick lookup map for telemetry items
+      const subMap = {};
+      telemetryData.forEach(s => { subMap[s.id] = s; });
+
+      container.innerHTML = filtered.map(item => {
+        const hasLinkedSub = item.submissionId && subMap[item.submissionId];
+        return `
+          <div class="bg-black/30 border border-white/10 rounded-xl p-5 space-y-3">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h2 class="font-semibold text-sm text-slate-100">${escapeHtml(item.title)}</h2>
+                <div class="text-[10px] text-slate-500 font-mono mt-0.5">${new Date(item.timestamp).toLocaleString()}</div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                ${hasLinkedSub ? `<button onclick='openTelemetryById("${item.submissionId}")' class="text-[10px] bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded transition">View Telemetry</button>` : ''}
+                <button onclick='copyText(this, ${JSON.stringify(item.text)})' class="text-[10px] bg-white/5 hover:bg-white/10 text-slate-300 px-2.5 py-1 rounded transition">Copy</button>
+              </div>
             </div>
+            <div class="bg-black/50 border border-white/5 rounded-lg p-3 text-xs text-slate-300 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed">${escapeHtml(item.text)}</div>
           </div>
-          <div class="bg-black/50 border border-white/5 rounded-lg p-3 text-xs text-slate-300 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed">${escapeHtml(item.text)}</div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
+    }
+
+    function openTelemetryById(subId) {
+      const match = telemetryData.find(s => String(s.id) === String(subId));
+      if (match) {
+        openModal(match);
+      } else {
+        alert('Linked telemetry packet not found.');
+      }
     }
 
     function openModal(item) {
