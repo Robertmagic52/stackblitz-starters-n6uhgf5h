@@ -179,7 +179,7 @@ app.get('/api/summaries', (req, res) => {
 });
 
 // ==================================================
-// 3.5 DATA DELETION ROUTES (NEW)
+// 3.5 DATA DELETION ROUTES
 // ==================================================
 app.post('/api/delete-item', (req, res) => {
   try {
@@ -215,6 +215,7 @@ app.post('/api/clear-data', (req, res) => {
   }
 });
 
+
 // ==================================================
 // 4. MAGIC LINKS PORTAL ROUTES (DATABASE BACKED)
 // ==================================================
@@ -228,3 +229,94 @@ async function getPortalData() {
         { id: '2', title: 'Predict and Peek', url: 'https://www.icloud.com/shortcuts/' }
       ]
     });
+    await data.save();
+  }
+  return data;
+}
+
+app.get('/', (req, res) => {
+  const indexFile = path.join(__dirname, 'index.html');
+  if (fs.existsSync(indexFile)) res.sendFile(indexFile);
+  else res.status(200).send('Server is live.');
+});
+
+app.get('/api/portal', async (req, res) => {
+  try {
+    const data = await getPortalData();
+    res.status(200).json({ success: true, masterRedirect: data.masterRedirect, links: data.links });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/save', async (req, res) => {
+  try {
+    const { masterRedirect, links } = req.body;
+    let data = await Portal.findOne();
+    if (!data) data = new Portal({ masterRedirect: 'https://gooqlc.com/111z', links: [] });
+    
+    if (masterRedirect) data.masterRedirect = masterRedirect;
+    if (Array.isArray(links)) data.links = links;
+    
+    await data.save();
+    return res.status(200).json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.all('/api/set-redirect', async (req, res) => {
+  try {
+    const newUrl = req.body?.url || req.query?.url;
+    if (!newUrl) return res.status(400).json({ success: false, error: 'Missing url' });
+    let data = await Portal.findOne();
+    if (!data) {
+      data = new Portal({ masterRedirect: newUrl, links: [] });
+    } else {
+      data.masterRedirect = newUrl;
+    }
+    await data.save();
+    return res.status(200).json({ success: true, masterRedirect: data.masterRedirect });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.all('/api/update-link', async (req, res) => {
+  try {
+    const id = req.body?.id || req.query?.id;
+    const newTitle = req.body?.title || req.query?.title;
+    const newUrl = req.body?.url || req.query?.url;
+    if (!id) return res.status(400).json({ success: false, error: 'Missing id' });
+
+    let data = await Portal.findOne();
+    if (!data) return res.status(404).json({ success: false, error: 'Portal data not found' });
+
+    const target = (data.links || []).find(item => item.id === String(id));
+    if (!target) return res.status(404).json({ success: false, error: 'Link not found' });
+
+    if (newTitle) target.title = newTitle;
+    if (newUrl) target.url = newUrl;
+    await data.save();
+    return res.status(200).json({ success: true, updated: target });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==================================================
+// 5. HISTORY DASHBOARD ROUTE
+// ==================================================
+app.get('/history', (req, res) => {
+  const historyHtmlPath = path.join(__dirname, 'history.html');
+  if (fs.existsSync(historyHtmlPath)) {
+    res.sendFile(historyHtmlPath);
+  } else {
+    res.status(404).send('Please create history.html in your GitHub repo.');
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Combined server running on port ${PORT}`);
+});
