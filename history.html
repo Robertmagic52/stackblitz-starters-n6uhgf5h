@@ -12,29 +12,23 @@
     
     <!-- Main Top Navigation -->
     <nav class="flex items-center gap-2 mb-10 border-b border-white/10 pb-4">
-      <button id="nav-data-btn" onclick="switchMainView('data')" class="px-4 py-2 text-sm font-semibold rounded-lg transition bg-white/10 text-white">Data Center</button>
+      <button id="nav-data-btn" onclick="switchMainView('data')" class="px-4 py-2 text-sm font-semibold rounded-lg transition bg-white/10 text-white">AI Summaries</button>
       <button id="nav-portal-btn" onclick="switchMainView('portal')" class="px-4 py-2 text-sm font-semibold rounded-lg transition text-slate-400 hover:text-white hover:bg-white/5">Portal Controller</button>
     </nav>
 
     <!-- ========================================== -->
-    <!-- VIEW 1: DATA CENTER (Telemetry & Summaries) -->
+    <!-- VIEW 1: AI SUMMARIES & LOGS                -->
     <!-- ========================================== -->
     <div id="view-data" class="block">
-      <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 class="text-xl font-semibold tracking-tight text-white">Data Center & Logs</h1>
-          <p class="text-xs text-slate-400 mt-1">Manage device telemetry packets and AI-generated summaries.</p>
-        </div>
-        <div class="flex items-center gap-2 bg-black/40 border border-white/10 p-1 rounded-xl">
-          <button id="tab-telemetry-btn" onclick="switchDataTab('telemetry')" class="text-xs px-3 py-1.5 rounded-lg font-medium transition bg-white/10 text-white">Telemetry</button>
-          <button id="tab-summaries-btn" onclick="switchDataTab('summaries')" class="text-xs px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">AI Summaries</button>
-        </div>
+      <header class="mb-6">
+        <h1 class="text-xl font-semibold tracking-tight text-white">AI Summaries & Logs</h1>
+        <p class="text-xs text-slate-400 mt-1">Review your AI-generated summaries and their linked device telemetry.</p>
       </header>
 
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <input type="text" id="search-input" oninput="renderCurrentDataTab()" placeholder="Filter entries..." class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-white/30 transition">
+        <input type="text" id="search-input" oninput="renderSummaries()" placeholder="Filter entries..." class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-white/30 transition">
         <div class="flex items-center gap-3 shrink-0">
-          <select id="sort-select" onchange="renderCurrentDataTab()" class="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-white/30 transition">
+          <select id="sort-select" onchange="renderSummaries()" class="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-white/30 transition">
             <option value="newest">Newest First</option>
             <option value="oldest">Oldest First</option>
           </select>
@@ -162,8 +156,6 @@
   <script>
     // --- GLOBAL STATE ---
     let activeMainView = 'data'; // 'data' | 'portal'
-    let activeDataTab = 'telemetry';
-    
     let telemetryData = [];
     let summariesData = [];
     let portalLinks = [];
@@ -186,26 +178,11 @@
         dataBtn.className = "px-4 py-2 text-sm font-semibold rounded-lg transition text-slate-400 hover:text-white hover:bg-white/5";
         portalView.classList.remove('hidden');
         dataView.classList.add('hidden');
-        loadPortalData(); // Lazy load portal data when tab is opened
+        loadPortalData();
       }
     }
 
-    function switchDataTab(tab) {
-      activeDataTab = tab;
-      const telBtn = document.getElementById('tab-telemetry-btn');
-      const sumBtn = document.getElementById('tab-summaries-btn');
-      
-      if (tab === 'telemetry') {
-        telBtn.className = "text-xs px-3 py-1.5 rounded-lg font-medium transition bg-white/10 text-white";
-        sumBtn.className = "text-xs px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white";
-      } else {
-        sumBtn.className = "text-xs px-3 py-1.5 rounded-lg font-medium transition bg-white/10 text-white";
-        telBtn.className = "text-xs px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white";
-      }
-      renderCurrentDataTab();
-    }
-
-    // --- DATA CENTER LOGIC ---
+    // --- DATA CENTER LOGIC (Summaries Only) ---
     async function loadAllData() {
       try {
         const [subRes, sumRes] = await Promise.all([
@@ -217,43 +194,10 @@
 
         telemetryData = subJson.success ? subJson.submissions : [];
         summariesData = sumJson.success ? sumJson.summaries : [];
-        renderCurrentDataTab();
+        renderSummaries();
       } catch (err) {
         document.getElementById('content-container').innerHTML = `<div class="text-center py-20 text-xs text-red-400">Failed to load data.</div>`;
       }
-    }
-
-    function renderCurrentDataTab() {
-      if (activeDataTab === 'telemetry') renderTelemetry();
-      else renderSummaries();
-    }
-
-    function renderTelemetry() {
-      const container = document.getElementById('content-container');
-      const query = document.getElementById('search-input').value.toLowerCase();
-      const sortMode = document.getElementById('sort-select').value;
-
-      let filtered = telemetryData.filter(item => {
-        const notesStr = String(item.notes || '').toLowerCase();
-        const msgStr = String(item.messages || '').toLowerCase();
-        return notesStr.includes(query) || msgStr.includes(query);
-      });
-      filtered.sort((a, b) => sortMode === 'newest' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp);
-
-      if (filtered.length === 0) {
-        container.innerHTML = `<div class="text-center py-16 text-xs text-slate-500 border border-white/5 rounded-xl">No telemetry packets found.</div>`;
-        return;
-      }
-
-      container.innerHTML = filtered.map(item => `
-        <div onclick='openModal(${JSON.stringify(item)})' class="bg-black/30 hover:bg-black/50 border border-white/10 hover:border-white/20 rounded-xl p-4 transition cursor-pointer flex items-center justify-between group">
-          <div class="space-y-1">
-            <div class="text-xs font-mono text-slate-200 truncate max-w-md">${escapeHtml(String(item.notes || 'No Notes Content'))}</div>
-            <div class="text-[10px] text-slate-500 font-mono">${new Date(item.timestamp).toLocaleString()}</div>
-          </div>
-          <div class="text-[11px] text-slate-400 group-hover:text-white transition flex items-center gap-1">Inspect &rarr;</div>
-        </div>
-      `).join('');
     }
 
     function renderSummaries() {
